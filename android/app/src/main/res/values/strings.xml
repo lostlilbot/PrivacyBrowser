@@ -8,5 +8,6 @@
     <string name="btn_stop">Stop</string>
     <string name="btn_home">Home</string>
     <string name="offline_message">No internet connection. Please check your network.</string>
+    <string name="error_loading_page">Error loading page. Please try again.</string>
     <string name="default_home_url">https://www.duckduckgo.com</string>
 </resources>

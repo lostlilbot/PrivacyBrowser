@@ -6,11 +6,15 @@ import android.content.Intent;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
+import android.util.AttributeSet;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.inputmethod.EditorInfo;
 import android.webkit.WebChromeClient;
+import android.webkit.WebResourceError;
+import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -19,6 +23,7 @@ import android.widget.EditText;
 import android.widget.ProgressBar;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.activity.OnBackPressedCallback;
 
 /**
  * Privacy-focused web browser application.
@@ -53,6 +58,9 @@ public class MainActivity extends AppCompatActivity {
 
         // Handle URL input
         setupUrlInput();
+
+        // Set up back button handling
+        setupBackPressedHandler();
 
         // Load default home page
         loadUrl(DEFAULT_HOME_URL);
@@ -277,6 +285,24 @@ public class MainActivity extends AppCompatActivity {
         return super.onKeyDown(keyCode, event);
     }
 
+    /**
+     * Set up modern back button handling using OnBackPressedCallback
+     */
+    private void setupBackPressedHandler() {
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                if (webView.canGoBack()) {
+                    webView.goBack();
+                } else {
+                    // If can't go back, finish the activity
+                    setEnabled(false);
+                    getOnBackPressedDispatcher().onBackPressed();
+                }
+            }
+        });
+    }
+
     @Override
     protected void onResume() {
         super.onResume();
@@ -307,6 +333,20 @@ public class MainActivity extends AppCompatActivity {
             // Load all URLs within the WebView (internal link handling)
             // Return false to let WebView handle the URL
             return false;
+        }
+
+        // For API 24+
+        @Override
+        public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+            return false;
+        }
+
+        @Override
+        public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
+            // Only handle main frame errors
+            if (request.isForMainFrame()) {
+                Toast.makeText(MainActivity.this, R.string.error_loading_page, Toast.LENGTH_SHORT).show();
+            }
         }
 
         @Override
