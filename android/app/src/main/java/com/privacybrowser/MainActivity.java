@@ -106,13 +106,26 @@ public class MainActivity extends AppCompatActivity {
         // Privacy settings - disable file and content access
         webSettings.setAllowFileAccess(false);
         webSettings.setAllowContentAccess(false);
-        
+        webSettings.setAllowFileAccessFromFileURLs(false);
+        webSettings.setAllowUniversalAccessFromFileURLs(false);
+
         // Disable geolocation (privacy)
         webSettings.setGeolocationEnabled(false);
-        
-        // Disable save password dialog (privacy)
-        webSettings.setSavePassword(false);
+
+        // Save password/form data is deprecated; explicitly disable form data for privacy
         webSettings.setSaveFormData(false);
+
+        // Modern WebView safe browsing
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            webSettings.setSafeBrowsingEnabled(true);
+        }
+
+        // Disable cookies and third-party cookies by default for privacy
+        android.webkit.CookieManager cookieManager = android.webkit.CookieManager.getInstance();
+        cookieManager.setAcceptCookie(false);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            cookieManager.setAcceptThirdPartyCookies(webView, false);
+        }
 
         // Enable mixed content handling for API 21+
         webSettings.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
@@ -222,11 +235,21 @@ public class MainActivity extends AppCompatActivity {
      * Load URL with network check
      */
     private void loadUrl(String url) {
+        if (url == null || url.isEmpty()) {
+            url = DEFAULT_HOME_URL;
+        }
+
         if (!isNetworkAvailable()) {
             Toast.makeText(this, R.string.offline_message, Toast.LENGTH_LONG).show();
+            showErrorPage();
             return;
         }
 
+        if (!url.startsWith("http://") && !url.startsWith("https://") && !url.startsWith("file://")) {
+            url = processInput(url);
+        }
+
+        urlEditText.setText(url);
         webView.loadUrl(url);
     }
 
@@ -327,11 +350,9 @@ public class MainActivity extends AppCompatActivity {
      * Custom WebViewClient to load all links within the app
      */
     private class CustomWebViewClient extends WebViewClient {
-        
         @Override
         public boolean shouldOverrideUrlLoading(WebView view, String url) {
             // Load all URLs within the WebView (internal link handling)
-            // Return false to let WebView handle the URL
             return false;
         }
 
@@ -342,18 +363,51 @@ public class MainActivity extends AppCompatActivity {
         }
 
         @Override
+        public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+            super.onPageStarted(view, url, favicon);
+            progressBar.setVisibility(View.VISIBLE);
+            btnRefresh.setVisibility(View.GONE);
+            btnStop.setVisibility(View.VISIBLE);
+            urlEditText.setText(url);
+            setTitle(url);
+        }
+
+        @Override
         public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
-            // Only handle main frame errors
             if (request.isForMainFrame()) {
-                Toast.makeText(MainActivity.this, R.string.error_loading_page, Toast.LENGTH_SHORT).show();
+                showErrorPage();
+            }
+        }
+
+        @SuppressWarnings("deprecation")
+        @Override
+        public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
+            super.onReceivedError(view, errorCode, description, failingUrl);
+            showErrorPage();
+        }
+
+        @Override
+        public void onReceivedHttpError(WebView view, WebResourceRequest request, android.webkit.WebResourceResponse errorResponse) {
+            if (request.isForMainFrame()) {
+                showErrorPage();
             }
         }
 
         @Override
         public void onPageFinished(WebView view, String url) {
             super.onPageFinished(view, url);
+            progressBar.setVisibility(View.GONE);
+            btnRefresh.setVisibility(View.VISIBLE);
+            btnStop.setVisibility(View.GONE);
             updateNavigationButtons();
             updateUrlBar();
+            setTitle(view.getTitle());
         }
     }
+
+    private void showErrorPage() {
+        String errorHtml = "<html><body><h2>" + getString(R.string.error_loading_page) + "</h2><p>" + getString(R.string.offline_message) + "</p></body></html>";
+        webView.loadDataWithBaseURL(null, errorHtml, "text/html", "UTF-8", null);
+    }
 }
+
